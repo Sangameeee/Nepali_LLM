@@ -32,21 +32,21 @@ def gemini_call(question):
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
-    answer
     if request.method == 'POST':
-        question = 'How does AI work?'
+        question = request.form.get('question')
         cached = CacheAnswer.query.get(question)
         if cached:
             answer = cached.answer
             print('took cached value')
+            return f"<p>{answer}</p>"
         else:
             answer = gemini_call(question)
             new_entry = CacheAnswer(question = question, answer = answer)
-            db.session.ad(new_entry)
+            db.session.add(new_entry)
             db.session.commit()
             print("saved to cached and showed it")
-        return f"<p>{answer}</p>"
-    return f"<p>{answer}</p>"
+            return f"<p>{answer}</p>"
+    return render_template('index.html')
 
 
 if __name__ == "__main__":
