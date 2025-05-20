@@ -4,12 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sodha</title>
+    <style>
+        #history {
+            max-width: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        .qa-pair {
+            margin-bottom: 15px;
+        }
+    </style>
 </head>
 <body>
+    <div id = "history">
+        {% for qa in history %}
+            <div class = "qa-pair">
+                <strong>Q:</strong> {{ qa.question }}<br>
+                <strong>A:</strong> {{ qa.answer | safe }}
+            </div>
+        {% endfor %}
+    </div>
     <form method="post">
         <label for="question">Enter your question:</label>
         <input type="text" id="question" name="question">
         <input type="submit" value="Submit">
     </form>
+    <script>
+        window.scrollTo(0, document.body.scrollHeight);
+    </script>
 </body>
 </html>
