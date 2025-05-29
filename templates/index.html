@@ -5,33 +5,178 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sodha</title>
     <style>
-        #history {
-            max-width: 400px;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+        #chat-list {
+            width: 200px;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+            background-color: #f8f8f8;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        #chat-list div {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        #chat-list div:hover {
+            background-color: #e0e0e0;
+        }
+        #current-chat {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #messages {
+            flex-grow: 1;
+            max-height: 80vh;
             overflow-y: auto;
             margin-bottom: 20px;
             padding: 10px;
+            border: 1px solid #ddd;
+            background-color: #fff;
         }
-        .qa-pair {
+        .message {
             margin-bottom: 15px;
+        }
+        .message strong {
+            display: inline-block;
+            width: 60px;
+        }
+        #question-form {
+            display: flex;
+            gap: 10px;
+        }
+        #question-input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
 <body>
-    <div id = "history">
-        {% for qa in history %}
-            <div class = "qa-pair">
-                <strong>Q:</strong> {{ qa.question }}<br>
-                <strong>A:</strong> {{ qa.answer | safe }}
-            </div>
-        {% endfor %}
+    <div id="chat-list"></div>
+    <div id="current-chat">
+        <button onclick="startNewChat()">New Chat</button>
+        <div id="messages"></div>
+        <form id="question-form"></form>
     </div>
-    <form method="post">
-        <label for="question">Enter your question:</label>
-        <input type="text" id="question" name="question">
-        <input type="submit" value="Submit">
-    </form>
     <script>
-        window.scrollTo(0, document.body.scrollHeight);
+        // Load and clean up chats from localStorage
+        let chats = JSON.parse(localStorage.getItem('chats')) || {};
+        const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        for (let chatID in chats) {
+            if (chats[chatID].timestamp < oneWeekAgo) {
+                delete chats[chatID];
+            }
+        }
+        localStorage.setItem('chats', JSON.stringify(chats));
+
+        // Display chat list in sidebar
+        function displayChatList() {
+            const chatListDiv = document.getElementById('chat-list');
+            chatListDiv.innerHTML = '';
+            for (let chatID in chats) {
+                const chatElem = document.createElement('div');
+                chatElem.textContent = chats[chatID].title;
+                chatElem.onclick = () => loadChat(chatID);
+                chatListDiv.appendChild(chatElem);
+            }
+        }
+
+        // Load messages for the selected chat
+        let currentChatID;
+        function loadChat(chatID) {
+            currentChatID = chatID;
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            chats[chatID].messages.forEach(msg => {
+                const msgElem = document.createElement('div');
+                msgElem.className = 'message';
+                msgElem.innerHTML = `<strong>${msg.role}:</strong> ${msg.content}`;
+                messagesDiv.appendChild(msgElem);
+            });
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Start a new chat
+        function startNewChat() {
+            const newChatID = 'chat_' + Date.now();
+            chats[newChatID] = {
+                title: 'Chat ' + new Date().toLocaleDateString(),
+                messages: [],
+                timestamp: Date.now()
+            };
+            localStorage.setItem('chats', JSON.stringify(chats));
+            displayChatList();
+            loadChat(newChatID);
+        }
+
+        // Populate form dynamically
+        const form = document.getElementById('question-form');
+        form.innerHTML = `
+            <input type="text" id="question-input" name="question" placeholder="Enter your question">
+            <button type="submit">Submit</button>
+        `;
+
+        // Handle form submission
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const questionInput = document.getElementById('question-input');
+            const question = questionInput.value.trim();
+            if (!question || !currentChatID) return;
+            questionInput.value = '';
+
+            // Add question to current chat
+            chats[currentChatID].messages.push({ role: 'user', content: question });
+            loadChat(currentChatID);
+
+            // Send question to server
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                if (!response.ok) throw new Error('Network error');
+                const data = await response.json();
+                chats[currentChatID].messages.push({ role: 'assistant', content: data.answer });
+                chats[currentChatID].timestamp = Date.now();
+                localStorage.setItem('chats', JSON.stringify(chats));
+                loadChat(currentChatID);
+            } catch (error) {
+                console.error('Error:', error);
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML += '<div class="message"><strong>Error:</strong> Failed to get response. Please try again.</div>';
+            }
+        };
+
+        // Initial load
+        displayChatList();
+        if (Object.keys(chats).length > 0) {
+            loadChat(Object.keys(chats)[0]);
+        } else {
+            startNewChat();
+        }
     </script>
 </body>
 </html>
